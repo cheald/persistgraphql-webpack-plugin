@@ -1,10 +1,11 @@
-var VirtualModulesPlugin = require('webpack-virtual-modules');
-var RawSource = require('webpack-sources').RawSource;
-var ExtractGQL = require('persistgraphql/lib/src/ExtractGQL').ExtractGQL;
-var path = require('path');
-var addTypenameTransformer = require('persistgraphql/lib/src/queryTransformers').addTypenameTransformer;
-var graphql = require('graphql');
-var _ = require('lodash');
+var VirtualModulesPlugin = require("webpack-virtual-modules");
+var RawSource = require("webpack-sources").RawSource;
+var ExtractGQL = require("persistgraphql/lib/src/ExtractGQL").ExtractGQL;
+var path = require("path");
+var addTypenameTransformer = require("persistgraphql/lib/src/queryTransformers")
+  .addTypenameTransformer;
+var graphql = require("graphql");
+var _ = require("lodash");
 
 function PersistGraphQLPlugin(options) {
   this.options = options || {};
@@ -41,23 +42,25 @@ PersistGraphQLPlugin.prototype.apply = function(compiler) {
   self.virtualModules.apply(compiler);
   self._compiler = compiler;
 
-  compiler.plugin('compilation', function(compilation) {
+  compiler.plugin("compilation", function(compilation) {
     if (!self._queryMap && !compilation.compiler.parentCompilation) {
-      self.virtualModules.writeModule(self.options.moduleName, '{}');
+      self.virtualModules.writeModule(self.options.moduleName, "{}");
     }
   });
 
-  compiler.plugin('normal-module-factory', function(nmf) {
-    nmf.plugin('after-resolve', function(result, callback) {
+  compiler.plugin("normal-module-factory", function(nmf) {
+    nmf.plugin("after-resolve", function(result, callback) {
       if (!result) {
         return callback();
       }
-      if (self.options.provider &&
-          result.request.indexOf(self.options.moduleName) >= 0 &&
-          !self._queryMap) {
+      if (
+        self.options.provider &&
+        result.request.indexOf(self.options.moduleName) >= 0 &&
+        !self._queryMap
+      ) {
         self._callback = function() {
           return callback(null, result);
-        }
+        };
       } else {
         return callback(null, result);
       }
@@ -65,18 +68,24 @@ PersistGraphQLPlugin.prototype.apply = function(compiler) {
   });
 
   if (!self.options.provider) {
-    compiler.plugin('compilation', function(compilation) {
+    compiler.plugin("compilation", function(compilation) {
       if (!compilation.compiler.parentCompilation) {
-        compilation.plugin('seal', function() {
-          var graphQLString = '';
+        compilation.plugin("seal", function() {
+          var graphQLString = "";
           var allQueries = [];
           compilation.modules.forEach(function(module) {
             var queries = module._graphQLQueries;
             if (queries) {
               Object.keys(queries).forEach(function(query) {
-                allQueries.push(self.options.addTypename
-                  ? graphql.print(addTypenameTransformer(JSON.parse(JSON.stringify(graphql.parse(query)))))
-                  : query);
+                allQueries.push(
+                  self.options.addTypename
+                    ? graphql.print(
+                        addTypenameTransformer(
+                          JSON.parse(JSON.stringify(graphql.parse(query)))
+                        )
+                      )
+                    : query
+                );
               });
             } else if (module._graphQLString) {
               graphQLString += module._graphQLString;
@@ -84,20 +93,28 @@ PersistGraphQLPlugin.prototype.apply = function(compiler) {
           });
 
           if (graphQLString) {
-            var extractor = new ExtractGQL({inputFilePath: '',
-              queryTransformers: self.options.addTypename ? [function(doc) {
-                return addTypenameTransformer(JSON.parse(JSON.stringify(doc)));
-              }] : undefined});
+            var extractor = new ExtractGQL({
+              inputFilePath: "",
+              queryTransformers: self.options.addTypename
+                ? [
+                    function(doc) {
+                      return addTypenameTransformer(
+                        JSON.parse(JSON.stringify(doc))
+                      );
+                    }
+                  ]
+                : undefined
+            });
 
             var doc = graphql.parse(graphQLString);
             var docMap = graphql.separateOperations(doc);
             var queries = {};
-            Object.keys(docMap).forEach(function (operationName) {
+            Object.keys(docMap).forEach(function(operationName) {
               var document = docMap[operationName];
               var fragmentMap = {};
               for (var i = document.definitions.length - 1; i >= 0; i--) {
                 var def = document.definitions[i];
-                if (def.kind === 'FragmentDefinition') {
+                if (def.kind === "FragmentDefinition") {
                   if (!fragmentMap[def.name.value]) {
                     fragmentMap[def.name.value] = true;
                   } else {
@@ -105,7 +122,10 @@ PersistGraphQLPlugin.prototype.apply = function(compiler) {
                   }
                 }
               }
-              queries = _.merge(queries, extractor.createMapFromDocument(document));
+              queries = _.merge(
+                queries,
+                extractor.createMapFromDocument(document)
+              );
             });
 
             Object.keys(queries).forEach(function(query) {
@@ -116,34 +136,57 @@ PersistGraphQLPlugin.prototype.apply = function(compiler) {
           var mapObj;
 
           if (allQueries.length) {
-            var finalExtractor = new ExtractGQL({inputFilePath: '',
-              queryTransformers: self.options.addTypename ? [function(doc) {
-                return addTypenameTransformer(JSON.parse(JSON.stringify(doc)));
-              }] : undefined});
+            var finalExtractor = new ExtractGQL({
+              inputFilePath: "",
+              queryTransformers: self.options.addTypename
+                ? [
+                    function(doc) {
+                      return addTypenameTransformer(
+                        JSON.parse(JSON.stringify(doc))
+                      );
+                    }
+                  ]
+                : undefined
+            });
 
-            mapObj = finalExtractor.createOutputMapFromString(allQueries.join('\n'));
+            mapObj = finalExtractor.createOutputMapFromString(
+              allQueries.join("\n")
+            );
           }
 
           var newQueryMap = JSON.stringify(mapObj);
           if (newQueryMap !== self._queryMap) {
             self._queryMap = newQueryMap;
-            self.virtualModules.writeModule(self.options.moduleName, self._queryMap);
+            self.virtualModules.writeModule(
+              self.options.moduleName,
+              self._queryMap
+            );
             compilation.modules.forEach(function(module) {
-              if (module.resource === self.options.moduleName ||
-                module.resource === path.resolve(path.join(compiler.context, self.options.moduleName))) {
-                module._source._value = "module.exports = " + self._queryMap + ";";
+              if (
+                module.resource === self.options.moduleName ||
+                module.resource ===
+                  path.resolve(
+                    path.join(compiler.context, self.options.moduleName)
+                  )
+              ) {
+                module._source._value =
+                  "module.exports = " + self._queryMap + ";";
               }
             });
           }
-          self._listeners.forEach(function(listener) { listener._notify(self._queryMap); });
+          self._listeners.forEach(function(listener) {
+            listener._notify(self._queryMap);
+          });
         });
       }
     });
   }
   if (self.options.filename) {
-    compiler.plugin('after-compile', function(compilation, callback) {
+    compiler.plugin("after-compile", function(compilation, callback) {
       if (!compilation.compiler.parentCompilation) {
-        compilation.assets[self.options.filename] = new RawSource(self._queryMap);
+        compilation.assets[self.options.filename] = new RawSource(
+          self._queryMap
+        );
       }
       callback();
     });
