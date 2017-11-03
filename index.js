@@ -6,6 +6,7 @@ var addTypenameTransformer = require("persistgraphql/lib/src/queryTransformers")
   .addTypenameTransformer;
 var graphql = require("graphql");
 var _ = require("lodash");
+var crypto = require("crypto");
 
 function PersistGraphQLPlugin(options) {
   this.options = options || {};
@@ -152,6 +153,16 @@ PersistGraphQLPlugin.prototype.apply = function(compiler) {
             mapObj = finalExtractor.createOutputMapFromString(
               allQueries.join("\n")
             );
+
+            var hashedQueryMap = {};
+            for (var k in mapObj) {
+              if (mapObj.hasOwnProperty(k)) {
+                const hash = crypto.createHash("sha256");
+                hash.update(k);
+                hashedQueryMap[k] = hash.digest("hex");
+              }
+            }
+            mapObj = hashedQueryMap;
           }
 
           var newQueryMap = JSON.stringify(mapObj);
