@@ -136,33 +136,41 @@ PersistGraphQLPlugin.prototype.apply = function(compiler) {
 
           var mapObj;
 
-          if (allQueries.length) {
-            var finalExtractor = new ExtractGQL({
-              inputFilePath: "",
-              queryTransformers: self.options.addTypename
-                ? [
-                    function(doc) {
-                      return addTypenameTransformer(
-                        JSON.parse(JSON.stringify(doc))
-                      );
-                    }
-                  ]
-                : undefined
-            });
+          try {
+            if (allQueries.length) {
+              var finalExtractor = new ExtractGQL({
+                inputFilePath: "",
+                queryTransformers: self.options.addTypename
+                  ? [
+                      function(doc) {
+                        return addTypenameTransformer(
+                          JSON.parse(JSON.stringify(doc))
+                        );
+                      }
+                    ]
+                  : undefined
+              });
 
-            mapObj = finalExtractor.createOutputMapFromString(
-              allQueries.join("\n")
-            );
+              mapObj = finalExtractor.createOutputMapFromString(
+                allQueries.join("\n")
+              );
 
-            var hashedQueryMap = {};
-            for (var k in mapObj) {
-              if (mapObj.hasOwnProperty(k)) {
-                const hash = crypto.createHash("sha256");
-                hash.update(k);
-                hashedQueryMap[k] = hash.digest("hex");
+              var hashedQueryMap = {};
+              for (var k in mapObj) {
+                if (mapObj.hasOwnProperty(k)) {
+                  const hash = crypto.createHash("sha256");
+                  hash.update(k);
+                  hashedQueryMap[k] = hash.digest("hex");
+                }
               }
+              mapObj = hashedQueryMap;
             }
-            mapObj = hashedQueryMap;
+          } catch (e) {
+            mapObj = {};
+            compilation.errors.push(e.stack);
+            compilation.errors.push(
+              new Error("Failed to compile GraphQL (bad fragment name?)")
+            );
           }
 
           var newQueryMap = JSON.stringify(mapObj);
@@ -185,6 +193,7 @@ PersistGraphQLPlugin.prototype.apply = function(compiler) {
               }
             });
           }
+
           self._listeners.forEach(function(listener) {
             listener._notify(self._queryMap);
           });
